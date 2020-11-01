@@ -6,7 +6,7 @@ import (
 
 // Entity represents all the things appearing in the game.
 type Entity interface {
-	Update() error
+	Update() ([]Event, error)
 	Draw(screen *ebiten.Image)
 }
 

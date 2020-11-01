@@ -2,6 +2,8 @@ package entity
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
+	"time"
+	"log"
 )
 
 type direction int
@@ -13,11 +15,14 @@ type Ship struct {
 	xSpeed float64
 	ySpeed float64
 	acceleration float64
+	bulletFactory BulletFactory
+	reloadTime time.Duration
+	isAbleToFire bool
 }
 
 // NewShip build and create a ship using sprite and a initial position (x,y)
-func NewShip(sprite *ebiten.Image, x float64, y float64, boundWidth float64, boundHeight float64) (*Ship, error) {
-	return &Ship{
+func NewShip(sprite *ebiten.Image, bulletSprite *ebiten.Image, x float64, y float64, boundWidth float64, boundHeight float64) (*Ship, error) {
+	ship := &Ship{
 		image: sprite,
 		position: Position{
 			X: x,
@@ -28,11 +33,39 @@ func NewShip(sprite *ebiten.Image, x float64, y float64, boundWidth float64, bou
 		xSpeed: 0,
 		ySpeed: 0,
 		acceleration: 0.1,
-	}, nil
+		bulletFactory: NewBulletFactory(bulletSprite, 0, -15, boundWidth, boundHeight),
+		reloadTime: time.Duration(800),
+		isAbleToFire: true,
+	}
+	return ship, nil
+}
+
+func (s *Ship) fireBullet() Event {
+	if s.isAbleToFire {
+		s.isAbleToFire = false
+
+		log.Print("fire bullet")
+		bullet := s.bulletFactory(s.position.X + 28, s.position.Y)
+		go func () {
+			time.Sleep(s.reloadTime * time.Millisecond)
+			s.isAbleToFire = true
+		} ()
+		return &AddEntityEvent{ BaseEvent: BaseEvent{ source: s }, EntityToAdd: bullet }
+	}
+	return nil
 }
 
 // Update the state of the Ship
-func (s *Ship) Update() error {
+func (s *Ship) Update() ([]Event, error) {
+	events := make([]Event, 0)
+
+	if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		fireEvent := s.fireBullet()
+		if fireEvent != nil {
+			events = append(events, fireEvent)
+		}
+	}
+
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		if s.ySpeed > 0 {
 			s.ySpeed -= 2
@@ -68,7 +101,7 @@ func (s *Ship) Update() error {
 
 	s.position.translate(s.xSpeed, s.ySpeed)
 
-	return nil
+	return events, nil
 }
 
 // Draw the ship

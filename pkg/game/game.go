@@ -6,6 +6,7 @@ import (
 	"github.com/louisinger/spaceGoInvader/pkg/background"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"image"
+	"log"
 )
 
 const (
@@ -16,7 +17,8 @@ const (
 // Game implements ebiten.Game interface.
 type Game struct{
 	background *background.Background
-	entities []entity.Entity
+	Entities []entity.Entity
+	eventHandler EventHandler
 }
 
 // NewGame inits the game instance
@@ -26,10 +28,12 @@ func NewGame(screenWidth float64, screenHeight float64) (*Game, error) {
 		return nil, err
 	}
 
-	game:= &Game{
+	game	:= &Game{
 		background: background.NewBackground(backgroundImage),
-		entities: make([]entity.Entity, 0),
+		Entities: make([]entity.Entity, 0),
 	}
+
+	game.eventHandler = newEventHandler(game)
 
 	shipImage, _, err := ebitenutil.NewImageFromFile("./assets/ships.png")
 	if err != nil {
@@ -37,9 +41,13 @@ func NewGame(screenWidth float64, screenHeight float64) (*Game, error) {
 	}
 	shipImage = shipImage.SubImage(image.Rect(0, 0, shipTileHeight, shipTileWidth)).(*ebiten.Image)
 
-	ship, _ := entity.NewShip(shipImage, 100, 300, screenWidth - shipTileWidth, screenHeight - shipTileHeight)
-	game.entities = append(game.entities, ship)
+	bulletImage, _, err := ebitenutil.NewImageFromFile("./assets/laser-03.png")
+	if err != nil {
+		return nil, err
+	}
 
+	ship, _ := entity.NewShip(shipImage, bulletImage, 100, 300, screenWidth - shipTileWidth, screenHeight - shipTileHeight)
+	game.Entities = append(game.Entities, ship)
 
 	return game, nil
 }
@@ -47,11 +55,21 @@ func NewGame(screenWidth float64, screenHeight float64) (*Game, error) {
 // Update proceeds the game state.
 // Update is called every tick (1/60 [s] by default).
 func (game *Game) Update() error {
+	log.Print(game.Entities)
 	game.background.Update()
 	// update entities
-	for _, entity := range game.entities {
-		err := entity.Update()
-		return err
+	for _, entity := range game.Entities {
+		events, err := entity.Update()
+		if err != nil {
+			return err
+		}
+
+		for _, event := range events {
+			err := game.eventHandler.handle(event)
+			if err != nil {
+				return err
+			}
+		}
 	}
   return nil
 }
@@ -60,7 +78,7 @@ func (game *Game) Update() error {
 // Draw is called every frame (typically 1/60[s] for 60Hz display).
 func (game *Game) Draw(screen *ebiten.Image) {	
 	game.background.Draw(screen)
-	for _, entity := range game.entities {
+	for _, entity := range game.Entities {
 		entity.Draw(screen)
 	}
 }
